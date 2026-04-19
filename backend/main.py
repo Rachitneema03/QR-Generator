@@ -1,51 +1,46 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-import qrcode
-import os
+from flask import Flask, jsonify, request, send_from_directory
 import base64
 from io import BytesIO
+import os
+import qrcode
 
 app = Flask(__name__)
-CORS(app)  # Allows frontend to make requests from different origin
 
-# Create QR-Generated folder if it doesn't exist
-os.makedirs("QR-Generated", exist_ok=True)
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+FRONTEND_DIR = os.path.join(PROJECT_ROOT, "frontend")
 
-@app.route('/generate-qr', methods=['POST'])
+
+@app.after_request
+def add_cors_headers(response):
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    return response
+
+
+@app.get("/")
+def index():
+    return send_from_directory(FRONTEND_DIR, "index.html")
+
+
+@app.post("/generate-qr")
 def generate_qr():
-    """
-    Endpoint to generate QR code
-    Expects JSON: {"url": "https://example.com"}
-    """
-    data = request.json
-    url = data.get('url')
-    
+    data = request.get_json(silent=True) or {}
+    url = (data.get("url") or "").strip()
     if not url:
-        return jsonify({'error': 'URL is required'}), 400
-    
-    try:
-        # Create QR code
-        qr_obj = qrcode.QRCode()
-        qr_obj.add_data(url)
-        img = qr_obj.make_image()
-        
-        # Save to file
-        filepath = "QR-Generated/qrcode.png"
-        img.save(filepath)
-        
-        # Convert to base64 for display
-        img_buffer = BytesIO()
-        img.save(img_buffer, format='PNG')
-        img_buffer.seek(0)
-        img_base64 = base64.b64encode(img_buffer.getvalue()).decode()
-        
-        return jsonify({
-            'message': 'QR generated successfully',
-            'image': f'data:image/png;base64,{img_base64}',
-            'filepath': filepath
-        })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": "URL is required"}), 400
 
-if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    image = qrcode.make(url)
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
+    image_base64 = base64.b64encode(buffer.getvalue()).decode("ascii")
+    return jsonify({"image": f"data:image/png;base64,{image_base64}"})
+
+
+@app.route("/generate-qr", methods=["OPTIONS"])
+def generate_qr_options():
+    return ("", 204)
+
+
+if __name__ == "__main__":
+    app.run(port=5000)
