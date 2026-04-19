@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Code Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .input-field {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        input[type="text"] {
+            width: 300px;
+            padding: 8px;
+            margin-right: 10px;
+        }
+        button {
+            padding: 8px 16px;
+        }
+    </style>
+</head>
+<body>
+    <h2>QR Code Generator</h2>
+
+    <div class="input-field">
+        <label for="url">Enter the URL:</label>
+        <input type="text" id="url" name="url" required>
+        <button type="button" onclick="submit(event)">Generate QR Code</button>
+    </div>
+
+    <div id="result">
+        <img id="qrImage" style="display:none; margin-top: 20px; border: 1px solid #ccc; padding: 10px; max-width: 300px;">
+        <p id="status" style="color: gray; font-size: 12px;"></p>
+    </div>
+</body>
+
+<script>
+    function submit(event) {
+        // Prevent any default behavior
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        
+        const url = document.getElementById('url').value;
+        const statusEl = document.getElementById('status');
+        
+        if (!url) {
+            alert('Please enter a URL');
+            return;
+        }
+        
+        statusEl.textContent = 'Generating QR code...';
+        
+        fetch('http://localhost:5000/generate-qr', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ url: url })
+        })
+        .then(response => {
+            console.log('Response status:', response.status);
+            if (!response.ok) {
+                return response.json().then(error => {
+                    throw new Error(error.error || 'Server error');
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Received data:', data);
+            if (data.error) {
+                alert('Error: ' + data.error);
+                document.getElementById('qrImage').style.display = 'none';
+                statusEl.textContent = 'Error: ' + data.error;
+            } else if (data.image) {
+                // Display the QR code
+                document.getElementById('qrImage').src = data.image;
+                document.getElementById('qrImage').style.display = 'block';
+                statusEl.textContent = 'QR Code generated successfully! ✓';
+                console.log('QR code displayed');
+            } else {
+                throw new Error('No image data in response');
+            }
+        })
+
+    // Modern lifecycle handling - replace deprecated unload event
+    window.addEventListener('pagehide', (event) => {
+        if (event.persisted) {
+            console.log('Page is being restored from back/forward cache');
+        }
+    });
+        .catch(error => {
+            console.error('Error:', error);
+            statusEl.textContent = 'Error: ' + error.message;
+            alert('Failed: ' + error.message + '\n\nMake sure backend is running on http://localhost:5000');
+        });
+    }
+</script>
+</html>
